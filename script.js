@@ -32,7 +32,7 @@ const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
 const allowedDomains = ["bitsathy.ac.in"];
-const captainEmails = ["sandeepthamotharan.it25@bitsathy.ac.in"];
+const captainEmails = ["indhumidraatg.it25@bitsathy.ac.in"];
 
 const courses = [
   { name: "Algebra", levels: 3 },
