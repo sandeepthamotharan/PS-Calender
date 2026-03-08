@@ -9,9 +9,11 @@ import {
 import {
   getFirestore,
   doc,
-  getDoc,
   setDoc,
-  serverTimestamp
+  getDoc,
+  serverTimestamp,
+  collection,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -30,6 +32,7 @@ const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
 const allowedDomains = ["bitsathy.ac.in"];
+const captainEmails = ["sandeepthamotharan.it25@bitsathy.ac.in"];
 
 const courses = [
   { name: "Algebra", levels: 3 },
@@ -78,6 +81,9 @@ const skillsGrid = document.getElementById("skillsGrid");
 const totalCourses = document.getElementById("totalCourses");
 const completedCourses = document.getElementById("completedCourses");
 
+const captainPanel = document.getElementById("captainPanel");
+const captainTableBody = document.getElementById("captainTableBody");
+
 function isValidBitsathyEmail(email) {
   const parts = email.toLowerCase().trim().split("@");
   if (parts.length !== 2) return false;
@@ -102,6 +108,71 @@ function getCompletedCourseCount(progressData) {
     count += progressData[course.name] || 0;
   }
   return count;
+}
+async function renderCaptainPanel(currentUser) {
+
+  if (!captainEmails.includes((currentUser.email || "").toLowerCase())) {
+    captainPanel.classList.add("hidden");
+    return;
+  }
+
+  captainPanel.classList.remove("hidden");
+  captainTableBody.innerHTML = "";
+
+  const usersRef = collection(db, "users");
+  const snapshot = await getDocs(usersRef);
+
+  const totalLevels = getTotalLevels();
+
+  for (const docSnap of snapshot.docs) {
+
+    const data = docSnap.data();
+
+const progressDocRef = doc(db, "users", docSnap.id, "psTracker", "main");
+const progressDocSnap = await getDoc(progressDocRef);
+
+let progressData = {};
+
+if (progressDocSnap.exists()) {
+  progressData = progressDocSnap.data().progress || {};
+}
+
+    let completedLevels = 0;
+
+    for (const course of courses) {
+      completedLevels += progressData[course.name] || 0;
+    }
+
+    const percentage =
+      totalLevels > 0 ? Math.round((completedLevels / totalLevels) * 100) : 0;
+
+    const row = document.createElement("tr");
+
+   let courseDetails = "";
+
+for (const course of courses) {
+  const done = progressData[course.name] || 0;
+  if (done > 0) {
+    courseDetails += `${course.name}: ${done}/${course.levels}<br>`;
+  }
+}
+
+if (courseDetails === "") {
+  courseDetails = "-";
+}
+
+row.innerHTML = `
+  <td>${data.name || "-"}</td>
+  <td>${data.email || "-"}</td>
+  <td>${completedLevels}</td>
+  <td>${courseDetails}</td>
+  <td>${percentage}%</td>
+`;
+
+captainTableBody.appendChild(row);
+
+}
+
 }
 
 function updateOverview(progressData) {
@@ -260,6 +331,10 @@ googleLoginBtn.addEventListener("click", async () => {
   try {
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
+await setDoc(doc(db, "users", user.uid), {
+  name: user.displayName,
+  email: user.email
+}, { merge: true });
     
     console.log("Logged in email:",user.email);
 
@@ -270,9 +345,14 @@ googleLoginBtn.addEventListener("click", async () => {
     }
 
    console.log("Login success");
+   await setDoc(doc(db, "users", user.uid), {
+  name: user.displayName,
+  email: user.email
+}, { merge: true });
    await renderCourses(user);
    console.log("Rendering dashboard");
    showDashboard(user.displayName || user.email);
+   await renderCaptainPanel(user);
   } catch (error) {
     showLogin(error.message);
   }
@@ -296,8 +376,19 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     await renderCourses(user);
-    showDashboard(user.displayName || user.email);
+showDashboard(user.displayName || user.email);
+await renderCaptainPanel(user);
   } else {
     showLogin("");
   }
 });
+function getTotalLevels() {
+  let total = 0;
+
+  for (const course of courses) {
+    total += course.levels;
+  }
+
+  return total;
+}
+
